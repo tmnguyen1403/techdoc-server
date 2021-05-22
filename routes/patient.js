@@ -92,7 +92,6 @@ router.post('/patient/login', async (req, res) => {
     console.log("patient password: ", password);
 
     //
-    const patientId = 997788;
     const fn = (isAuthenticated, userId) => {
         if (isAuthenticated) {
             //res.json({id: userId, authenticated: true});
