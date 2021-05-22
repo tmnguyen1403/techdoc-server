@@ -1,6 +1,7 @@
 const router = require("express").Router();
 const admin = require('firebase-admin');
-
+const {authenticate} = require('./authenticate');
+const PATIENT = "patients";
 
 
 router.get('/patient/:id/doctors', async (req, res) => {
@@ -70,24 +71,20 @@ router.post('/patient/:id/question', async (req, res) => {
     res.send(response);
 });
 
-router.get('/patient/login', async (req, res) => {
-    const {id} = req.params;
-    const {email, password} = req.body;
-    console.log("patient email: ", email);
-    console.log("patient password: ", password);
+// router.get('/patient/login', async (req, res) => {
+//     const {id} = req.params;
+//     const {email, password} = req.body;
+//     console.log("patient email: ", email);
+//     console.log("patient password: ", password);
 
-    //
-    const patientId = 997788;
-    //save new patient to patients/<patientId>
-    var db = admin.database();
-    const ref = db.ref("patient");
-    
-    ref.get()
-});
+
+// });
 
 router.post('/patient/login', async (req, res) => {
     /* Test Command
     curl -d "email=tom@gmail.com&password=tom123" -X POST http://localhost:3003/patient/login
+    #Existing users but no data in patients
+    curl -d "email=mario@gmail.com&password=mario123" -X POST http://localhost:3003/patient/login
     */
     const {id} = req.params;
     const {email, password} = req.body;
@@ -96,27 +93,33 @@ router.post('/patient/login', async (req, res) => {
 
     //
     const patientId = 997788;
-    //save new patient to patients/<patientId>
-    var db = admin.database();
-    const userRef = db.ref("users");
+    const fn = (isAuthenticated, userId) => {
+        if (isAuthenticated) {
+            //res.json({id: userId, authenticated: true});
+            var db = admin.database();
+            var patientRef = db.ref(PATIENT);
+            patientRef.orderByKey().equalTo(userId).on("value", (snapshot) => {
+                const user = snapshot.val();
+                if (user === null || user === undefined) {
+                    res.json({error: "No record of user " + userId, isAuthenticated: true});
+                    return;
+                }
+                var userId;
+                for (var id in user) {
+                    userId = id;
+                }
+                console.log("retrieve user info successfully")
+                res.json({data: user[userId], isAuthenticated: true});
+            }, (errorObject) => {
+                res.json({error: "Error getting user info " + errorObject.code, isAuthenticated: false});
+            });
 
-    userRef.orderByChild("email").equalTo(email).limitToFirst(1).on("value", function(snapshot) {
-        const user = snapshot.val();
-        var userId;
-
-        for (var id in user) {
-            userId = id;
-        }
-        if (user[userId].password === password) {
-            res.json({id: userId, authenticated: true});
         } else {
-            res.json({id: null, authenticated: false});
+            console.log("error authenticating user");
+            res.json({error: "Error authenticating user ", isAuthenticated: false});
         }
-    }, function (errorObject) {
-        console.log("The read failed: " + errorObject.code);
-        res.json({id: null, authenticated: false});
-    });
-    
+    }
+    const isAuthenticated =  authenticate(email, password, fn);
 });
 
 module.exports = router;
