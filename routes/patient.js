@@ -1,8 +1,9 @@
 const router = require("express").Router();
 const admin = require('firebase-admin');
 const {authenticate} = require('./authenticate');
-const PATIENT = "patients";
-
+const PATIENTS = "patients";
+const QUESTIONS = "questions";
+const NOTI_DEVICES = "noti_devices";
 
 router.get('/patient/:id/doctors', async (req, res) => {
     console.log(req.params);
@@ -54,21 +55,104 @@ router.post('/patient/:id/question', async (req, res) => {
         "fKJlOCdwQu6yQq6hv7OKyy:APA91bGozfpeHFbTHFv9KQCvXrgnu9kBN8flz-WtMb8R_Tds6MMRp5a1Kchunl5SgoCtKg6PHAqHe2BrJh8yMuSiByBjueCuZpYA_wJDBE1eT08EhvSyA8GVPTRkqjct-o5l4Je8RCok",
    "dqYblUw2R6GlAEKDJbwztv:APA91bFQ0Vp1z4Itj_uj2zODlAT3ihSJtc30crxC75M_W1aInmnDtHnfjTanUY2E8EcH8mTEf5kIsGEJ8btE82IGu7XRb9h"];
     
-   const TITLE = "Question from patient " + id;
-    const message = {
-        tokens: registrationTokens,
-        notification: {
-        body: question,
-        title: TITLE,
-        },
+    //save to database
+    var db = admin.database();
+    var questionRef = db.ref(QUESTIONS);
+    var questionId = "q" + Date.now().toString() + id;
+    console.log("questionId ", questionId);
+    questionRef.set({
+        [questionId]: {
+            id: questionId,
+            content: question,
+            askerId: id, 
+        }
+    })
+    /* Test Command
+    curl -d "question=whoareyou" -X POST http://localhost:3003/patient/1/question
+    #Existing patients
+    curl -d "question=whoareyou" -X POST http://localhost:3003/patient/878000/question
+    */
+    //retrieve medical_provider ids
+    var patientRef = db.ref(PATIENTS);
+    const errorHandler = (errorObject) => {
+        res.json({error: "Error getting patient info " + errorObject.code});
+    }
+    const getMedicalTeamIds = async (patientRef, patientId, callback, errorHandler) => {
+        
+        patientRef.orderByKey().equalTo(patientId).on("value", (snapshot) => {
+            const patient = snapshot.val();
+            if (patient === null || patient === undefined) {
+                res.json({error: "No record of patient " + id, isAuthenticated: true});
+                return;
+            }
+            var patientId;
+            for (var tId in patient) {
+                patientId = tId;
+            }
+            const medicalTeamIds = patient[patientId].medicalTeam;
+            console.log("retrieve medical team: ", medicalTeamIds);
+            callback(medicalTeamIds, null, errorHandler);
+        }, (errorObject) => {
+            errorHandler(errorObject);
+        });
     };
+    const getFCMs = async (ids, callback, errorHandler) => {
+        console.log(ids);
+        var deviceRef = db.ref(NOTI_DEVICES);
+        deviceRef.orderByKey().on("value", async (snapshot) => {
+            const devices = snapshot.val();
+            if (devices === null || devices === undefined) {
+                res.json({error: "No record of devices "});
+                return;
+            }
+            let registrationTokens = [];
+            for (var tId in devices) {
+                if (ids.includes(tId)) {
+                    if (devices[tId].fcm !== '')
+                        registrationTokens.push(devices[tId].fcm);
+                }
+            }
+            console.log(registrationTokens);
+            //send noti
+            const TITLE = "Question from patient " + id;
+            const message = {
+                tokens: registrationTokens,
+                notification: {
+                    body: question,
+                    title: TITLE,
+                },
+            };
+          
+            const response = await admin
+                .messaging()
+                .sendMulticast(message);
+            
+            console.log("Response ", response);
+            res.send(response);
+
+        }, (errorObject) => {
+            errorHandler(errorObject);
+        });
+    }
+    getMedicalTeamIds(patientRef, id, getFCMs, errorHandler)
+    //search for fcm of each provider
+   //notify
+
+//    const TITLE = "Question from patient " + id;
+//     const message = {
+//         tokens: registrationTokens,
+//         notification: {
+//             body: question,
+//             title: TITLE,
+//         },
+//     };
   
-    const response = await admin
-        .messaging()
-        .sendMulticast(message);
+//     const response = await admin
+//         .messaging()
+//         .sendMulticast(message);
     
-    console.log("Response ", response);
-    res.send(response);
+//     console.log("Response ", response);
+//     res.send(response);
 });
 
 // router.get('/patient/login', async (req, res) => {
@@ -96,7 +180,7 @@ router.post('/patient/login', async (req, res) => {
         if (isAuthenticated) {
             //res.json({id: userId, authenticated: true});
             var db = admin.database();
-            var patientRef = db.ref(PATIENT);
+            var patientRef = db.ref(PATIENTS);
             patientRef.orderByKey().equalTo(userId).on("value", (snapshot) => {
                 const user = snapshot.val();
                 if (user === null || user === undefined) {
@@ -120,6 +204,7 @@ router.post('/patient/login', async (req, res) => {
     }
     const isAuthenticated =  authenticate(email, password, fn);
 });
+
 
 module.exports = router;
 

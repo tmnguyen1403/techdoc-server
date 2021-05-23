@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const patient = require("./patient");
-const doctor = require("./doctor");
+const medical_provider = require("./medical_provider");
 
-router.use("", [patient, doctor]);
+router.use("", [patient, medical_provider]);
 
 module.exports = router;
