@@ -42,7 +42,30 @@ router.get('/patient/:id/doctors', async (req, res) => {
 
 });
 
+router.get('/patient/:id/questions', async (req, res) => {
+    const {id} = req.params;
+    console.log("user id: ", id);
+  
+    //save to database
+    var db = admin.database();
+    var questionRef = db.ref(QUESTIONS);
+    questionRef.orderByChild("askerId").equalTo(id.toString()).on("value", (snapshot) => {
+        let questions = [];
+        let result = snapshot.val();
+        console.log("Questions ", result);
 
+        for (questionId in result) {
+            questions.push(result[questionId]);
+        }
+        res.json(questions);
+    })
+    /* Test Command
+    curl -d "question=whoareyou" -X POST http://localhost:3003/patient/1/question
+    #Existing patients
+    curl -d "question=whoareyou" -X POST http://localhost:3003/patient/878000/question
+    */
+    //retrieve medical_provider ids
+});
 
 router.post('/patient/:id/question', async (req, res) => {
     const {id} = req.params;
@@ -58,19 +81,18 @@ router.post('/patient/:id/question', async (req, res) => {
     //save to database
     var db = admin.database();
     var questionRef = db.ref(QUESTIONS);
-    var questionId = "q" + Date.now().toString() + id;
+    var questionId = "q_" + Date.now().toString() + "_id";
     console.log("questionId ", questionId);
-    questionRef.set({
-        [questionId]: {
-            id: questionId,
-            content: question,
-            askerId: id, 
-        }
-    })
+    var questionObject = {
+        id: questionId,
+        content: question,
+        askerId: id, 
+    };
+    questionRef.child(questionId).set(questionObject);
     /* Test Command
     curl -d "question=whoareyou" -X POST http://localhost:3003/patient/1/question
     #Existing patients
-    curl -d "question=whoareyou" -X POST http://localhost:3003/patient/878000/question
+    curl -d "question=whoareyou" -X POST http://localhost:3003/patient/997788/question
     */
     //retrieve medical_provider ids
     var patientRef = db.ref(PATIENTS);
@@ -128,31 +150,13 @@ router.post('/patient/:id/question', async (req, res) => {
                 .sendMulticast(message);
             
             console.log("Response ", response);
-            res.send(response);
+            res.json(questionObject);
 
         }, (errorObject) => {
             errorHandler(errorObject);
         });
     }
     getMedicalTeamIds(patientRef, id, getFCMs, errorHandler)
-    //search for fcm of each provider
-   //notify
-
-//    const TITLE = "Question from patient " + id;
-//     const message = {
-//         tokens: registrationTokens,
-//         notification: {
-//             body: question,
-//             title: TITLE,
-//         },
-//     };
-  
-//     const response = await admin
-//         .messaging()
-//         .sendMulticast(message);
-    
-//     console.log("Response ", response);
-//     res.send(response);
 });
 
 // router.get('/patient/login', async (req, res) => {
