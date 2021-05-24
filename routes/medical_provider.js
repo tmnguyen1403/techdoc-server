@@ -3,7 +3,7 @@ const admin = require('firebase-admin');
 const {authenticate} = require('./authenticate');
 
 const MEDICAL_PROVIDER = "medical_providers";
-const NOTI_DEVICES = "noti_devices";
+const CARE_PLANS = "care_plans";
 
 router.get('/medical_providers/seeding', async (req, res) => {
     //save new patient to patients/<patientId>
@@ -25,7 +25,68 @@ router.get('/medical_providers/seeding', async (req, res) => {
     res.json({status: "seeded"});
 });
 
-router.post('/medical_providers/login', async (req, res) => {
+router.get('/medical_provider/:id/care_plans', async (req, res) => {
+    const {id} = req.params;
+    console.log("user id: ", id);
+    if (id === undefined) {
+        res.json({});
+        return;
+    }
+    var db = admin.database();
+    var careRef = db.ref(CARE_PLANS);
+    
+    careRef.orderByChild("ownerId").equalTo(id).once("value", (snapshot) => {
+        console.log("care plans", snapshot.val())
+        const result = snapshot.val();
+        var plans = []
+        for (var i in result) {
+            plans.push(result[i]);
+        }
+        res.json(plans);
+        return;
+    }, (errorObject) => {
+        res.json({error: errorObject});
+    })
+
+    /* Test Command
+    curl -X GET http://localhost:3003/medical_provider/d101/care_plans
+    */
+    //retrieve medical_provider ids
+});
+
+router.post('/medical_provider/:id/care_plan', async (req, res) => {
+    const {id} = req.params;
+    const {care_plan} = req.body;
+    console.log("user id: ", id);
+    console.log("care_plan: ", care_plan);
+    if (care_plan === undefined) {
+        res.json({});
+        return;
+    }
+   // const {id} = req.params;
+    //save to database
+    var db = admin.database();
+    var careRef = db.ref(CARE_PLANS);
+    var careId = "cp_" + Date.now().toString() + "_id";
+    console.log("careId ", careId);
+    var careObject = {
+        id: careId,
+        content: care_plan,
+        ownerId: id,
+    };
+    await careRef.child(careId).set(careObject);
+    //const responseJson = await response.json();
+    console.log("add care plan ", careObject);
+    res.json(careObject);
+    /* Test Command
+    curl -d "care_plan=takecareofmypatient" -X POST http://localhost:3003/medical_provider/d101/care_plan
+    #Existing patients
+    curl -d "question=whoareyou" -X POST http://localhost:3003/patient/997788/question
+    */
+    //retrieve medical_provider ids
+});
+
+router.post('/medical_provider/login', async (req, res) => {
     /* Test Command
     curl -d "email=pamela@gmail.com&password=pamela123" -X POST http://localhost:3003/doctor/login
     */

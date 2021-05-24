@@ -49,7 +49,7 @@ router.get('/patient/:id/questions', async (req, res) => {
     //save to database
     var db = admin.database();
     var questionRef = db.ref(QUESTIONS);
-    questionRef.orderByChild("askerId").equalTo(id.toString()).on("value", (snapshot) => {
+    questionRef.orderByChild("askerId").equalTo(id.toString()).once("value", (snapshot) => {
         let questions = [];
         let result = snapshot.val();
         console.log("Questions ", result);
@@ -58,6 +58,7 @@ router.get('/patient/:id/questions', async (req, res) => {
             questions.push(result[questionId]);
         }
         res.json(questions);
+        return;
     })
     /* Test Command
     curl -d "question=whoareyou" -X POST http://localhost:3003/patient/1/question
@@ -72,12 +73,11 @@ router.post('/patient/:id/question', async (req, res) => {
     const {question} = req.body;
     console.log("user id: ", id);
     console.log("question: ", question);
+    if (question === undefined) {
+        res.json({});
+        return;
+    }
    // const {id} = req.params;
-   //firestore connect
-    const registrationTokens = [
-        "fKJlOCdwQu6yQq6hv7OKyy:APA91bGozfpeHFbTHFv9KQCvXrgnu9kBN8flz-WtMb8R_Tds6MMRp5a1Kchunl5SgoCtKg6PHAqHe2BrJh8yMuSiByBjueCuZpYA_wJDBE1eT08EhvSyA8GVPTRkqjct-o5l4Je8RCok",
-   "dqYblUw2R6GlAEKDJbwztv:APA91bFQ0Vp1z4Itj_uj2zODlAT3ihSJtc30crxC75M_W1aInmnDtHnfjTanUY2E8EcH8mTEf5kIsGEJ8btE82IGu7XRb9h"];
-    
     //save to database
     var db = admin.database();
     var questionRef = db.ref(QUESTIONS);
@@ -86,7 +86,8 @@ router.post('/patient/:id/question', async (req, res) => {
     var questionObject = {
         id: questionId,
         content: question,
-        askerId: id, 
+        askerId: id,
+        answerId: '',
     };
     questionRef.child(questionId).set(questionObject);
     /* Test Command
@@ -101,7 +102,7 @@ router.post('/patient/:id/question', async (req, res) => {
     }
     const getMedicalTeamIds = async (patientRef, patientId, callback, errorHandler) => {
         
-        patientRef.orderByKey().equalTo(patientId).on("value", (snapshot) => {
+        patientRef.orderByKey().equalTo(patientId).once("value", (snapshot) => {
             const patient = snapshot.val();
             if (patient === null || patient === undefined) {
                 res.json({error: "No record of patient " + id, isAuthenticated: true});
@@ -121,7 +122,7 @@ router.post('/patient/:id/question', async (req, res) => {
     const getFCMs = async (ids, callback, errorHandler) => {
         console.log(ids);
         var deviceRef = db.ref(NOTI_DEVICES);
-        deviceRef.orderByKey().on("value", async (snapshot) => {
+        deviceRef.orderByKey().once("value", async (snapshot) => {
             const devices = snapshot.val();
             if (devices === null || devices === undefined) {
                 res.json({error: "No record of devices "});
@@ -151,7 +152,7 @@ router.post('/patient/:id/question', async (req, res) => {
             
             console.log("Response ", response);
             res.json(questionObject);
-
+            return;
         }, (errorObject) => {
             errorHandler(errorObject);
         });
@@ -185,7 +186,7 @@ router.post('/patient/login', async (req, res) => {
             //res.json({id: userId, authenticated: true});
             var db = admin.database();
             var patientRef = db.ref(PATIENTS);
-            patientRef.orderByKey().equalTo(userId).on("value", (snapshot) => {
+            patientRef.orderByKey().equalTo(userId).once("value", (snapshot) => {
                 const user = snapshot.val();
                 if (user === null || user === undefined) {
                     res.json({error: "No record of user " + userId, isAuthenticated: true});
